@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Claude Chat</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark-dimmed.min.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app">
+
+    <!-- Header -->
+    <header class="header">
+      <div class="header-brand">
+        <span class="brand-icon">◆</span>
+        <span class="brand-name">Claude Chat</span>
+      </div>
+      <div class="header-controls">
+        <select id="model-select" class="model-select" title="Select model">
+          <option value="claude-opus-4-7">Opus 4.7</option>
+          <option value="claude-sonnet-4-6">Sonnet 4.6</option>
+          <option value="claude-haiku-4-5">Haiku 4.5</option>
+        </select>
+        <button id="clear-btn" class="icon-btn" title="Clear conversation">
+          <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
+        </button>
+        <button id="settings-btn" class="icon-btn" title="Settings">
+          <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- Chat Area -->
+    <main class="chat-main" id="chat-main">
+      <div class="messages-wrapper">
+        <div id="messages" class="messages">
+          <div class="welcome" id="welcome">
+            <div class="welcome-icon">◆</div>
+            <h1>Claude Chat</h1>
+            <p>Start a conversation with Claude AI.</p>
+            <div class="welcome-hints">
+              <div class="hint">Ask me anything</div>
+              <div class="hint">Write &amp; debug code</div>
+              <div class="hint">Summarize &amp; analyze</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- Input Footer -->
+    <footer class="input-footer">
+      <div class="input-container">
+        <div id="no-key-warning" class="no-key-warning hidden">
+          <span>⚠ No API key configured.</span>
+          <button id="add-key-btn">Add key →</button>
+        </div>
+        <div class="input-box">
+          <textarea
+            id="message-input"
+            class="message-input"
+            placeholder="Message Claude…"
+            rows="1"
+            autofocus
+          ></textarea>
+          <button id="send-btn" class="send-btn" disabled title="Send message">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
+          </button>
+        </div>
+        <p class="input-hint">Enter to send · Shift+Enter for new line</p>
+      </div>
+    </footer>
+
+    <!-- Settings Modal -->
+    <div id="settings-modal" class="modal hidden" role="dialog" aria-modal="true" aria-label="Settings">
+      <div class="modal-backdrop" id="modal-backdrop"></div>
+      <div class="modal-panel">
+        <div class="modal-header">
+          <h2>Settings</h2>
+          <button class="icon-btn modal-close-btn" id="close-settings" title="Close">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+        <div class="modal-body">
+
+          <div class="setting-section">
+            <label class="setting-label" for="api-key-input">
+              Anthropic API Key
+              <span class="setting-badge" id="key-status">Not set</span>
+            </label>
+            <div class="key-input-row">
+              <input type="password" id="api-key-input" class="text-input" placeholder="sk-ant-api03-…" autocomplete="off" spellcheck="false"/>
+              <button class="icon-btn" id="toggle-key-vis" title="Show / hide key">
+                <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              </button>
+            </div>
+            <p class="setting-help">Stored locally in your browser. Sent only to Anthropic.</p>
+          </div>
+
+          <div class="setting-section">
+            <label class="setting-label" for="system-prompt-input">System Prompt</label>
+            <textarea id="system-prompt-input" class="text-input" rows="4" placeholder="You are a helpful AI assistant."></textarea>
+          </div>
+
+          <div class="setting-section">
+            <label class="setting-label">Theme</label>
+            <div class="theme-toggle">
+              <button class="theme-btn active" data-theme="dark">Dark</button>
+              <button class="theme-btn" data-theme="light">Light</button>
+            </div>
+          </div>
+
+          <div class="setting-section">
+            <div class="toggle-row">
+              <div>
+                <span class="setting-label" style="display:block">Show thinking process</span>
+                <p class="setting-help" style="margin-top:2px">Display Claude's reasoning. Opus &amp; Sonnet 4.6 only.</p>
+              </div>
+              <label class="toggle-switch" title="Show thinking">
+                <input type="checkbox" id="show-thinking-toggle">
+                <span class="toggle-track"></span>
+              </label>
+            </div>
+          </div>
+
+        </div>
+        <div class="modal-footer">
+          <button class="secondary-btn" id="cancel-settings">Cancel</button>
+          <button class="primary-btn" id="save-settings">Save</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.8/purify.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
