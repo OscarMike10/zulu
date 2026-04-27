@@ -1,0 +1,89 @@
+name: Security Scan Review
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    # Daily at 06:00 UTC
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+
+jobs:
+  scan-and-review:
+    name: Run scanners & AI review
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # ── Node.js (for agent.js) ──────────────────────────────
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - run: npm ci
+
+      # ── ClamAV ─────────────────────────────────────────────
+      - name: Install ClamAV
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y clamav clamav-daemon
+          sudo systemctl stop clamav-freshclam || true
+          sudo freshclam --quiet
+
+      - name: Run ClamAV scan
+        run: |
+          clamscan --recursive --infected --exclude-dir=node_modules \
+            . > scan-results/clamav.txt 2>&1 || true
+          mkdir -p scan-results
+          clamscan --recursive --infected --exclude-dir=node_modules \
+            . > scan-results/clamav.txt 2>&1 || true
+
+      # ── Grype & Syft ───────────────────────────────────────
+      - name: Install Grype & Syft
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh \
+            | sh -s -- -b /usr/local/bin
+          curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh \
+            | sh -s -- -b /usr/local/bin
+
+      - name: Generate SBOM with Syft
+        run: syft dir:. --output json > scan-results/syft.json
+
+      - name: Scan SBOM with Grype
+        run: grype sbom:scan-results/syft.json --output json > scan-results/grype.json
+
+      # ── Trivy ──────────────────────────────────────────────
+      - name: Install Trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: fs
+          scan-ref: .
+          format: json
+          output: scan-results/trivy.json
+          exit-code: '0'        # Don't fail here — let the agent decide
+          ignore-unfixed: false
+
+      # ── AI Review ──────────────────────────────────────────
+      - name: AI security review
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          node agent.js \
+            --clamav=scan-results/clamav.txt \
+            --grype=scan-results/grype.json \
+            --syft=scan-results/syft.json \
+            --trivy=scan-results/trivy.json
+
+      # ── Upload scan artifacts ───────────────────────────────
+      - name: Upload scan results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: scan-results-${{ github.run_number }}
+          path: scan-results/
+          retention-days: 30
