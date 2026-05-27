@@ -58,6 +58,22 @@
           <span>⚠ No API key configured.</span>
           <button id="add-key-btn">Add key →</button>
         </div>
+
+        <!-- Sensitive data scan warning -->
+        <div id="scan-warning" class="scan-warning hidden">
+          <div class="scan-header">
+            <span class="scan-shield">⚑</span>
+            <strong>Sensitive data detected</strong>
+            <span id="scan-count" class="scan-count-badge"></span>
+          </div>
+          <div id="scan-detections" class="scan-detections"></div>
+          <div class="scan-actions">
+            <button id="scan-redact-btn" class="scan-redact-btn">Auto-Redact &amp; Send</button>
+            <button id="scan-send-btn" class="scan-send-anyway-btn">Send Anyway</button>
+            <button id="scan-cancel-btn" class="secondary-btn">Cancel</button>
+          </div>
+        </div>
+
         <div class="input-box">
           <textarea
             id="message-input"

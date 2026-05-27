@@ -58,6 +58,8 @@ class ChatApp {
     this.history = []; // Anthropic messages array
     this.isStreaming = false;
     this.serverHasKey = false;
+    this.pendingText = null;
+    this.pendingDetections = null;
     this.settings = {
       apiKey: '',
       model: 'claude-opus-4-7',
@@ -143,6 +145,28 @@ class ChatApp {
     });
 
     document.getElementById('add-key-btn')?.addEventListener('click', () => this.openSettings());
+
+    // Scan warning actions
+    document.getElementById('scan-redact-btn').addEventListener('click', () => {
+      const redacted = this.applyRedactions(this.pendingText, this.pendingDetections);
+      this.dismissScanWarning();
+      this.proceedWithSend(redacted);
+    });
+    document.getElementById('scan-send-btn').addEventListener('click', () => {
+      const text = this.pendingText;
+      this.dismissScanWarning();
+      this.proceedWithSend(text);
+    });
+    document.getElementById('scan-cancel-btn').addEventListener('click', () => {
+      const text = this.pendingText;
+      this.dismissScanWarning();
+      const input = document.getElementById('message-input');
+      input.value = text || '';
+      input.style.height = 'auto';
+      input.style.height = Math.min(input.scrollHeight, 200) + 'px';
+      document.getElementById('send-btn').disabled = !input.value.trim();
+      input.focus();
+    });
   }
 
   async checkServerStatus() {
@@ -157,16 +181,112 @@ class ChatApp {
   }
 
   /* ── Send ──────────────────────────────────────────────── */
-  send() {
+  async send() {
     const input = document.getElementById('message-input');
     const text = input.value.trim();
     if (!text || this.isStreaming) return;
 
+    const sendBtn = document.getElementById('send-btn');
+    sendBtn.disabled = true;
+    sendBtn.setAttribute('data-scanning', '');
+
+    const detections = await this.scanMessage(text);
+
+    sendBtn.removeAttribute('data-scanning');
+
+    if (detections.length > 0) {
+      sendBtn.disabled = false;
+      this.showScanWarning(text, detections);
+      return;
+    }
+
+    this.proceedWithSend(text);
+  }
+
+  proceedWithSend(text) {
+    const input = document.getElementById('message-input');
     input.value = '';
     input.style.height = 'auto';
     document.getElementById('send-btn').disabled = true;
-
     this.streamResponse(text);
+  }
+
+  /* ── Scan ──────────────────────────────────────────────── */
+  async scanMessage(text) {
+    try {
+      const res = await fetch('/api/scan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, apiKey: this.settings.apiKey }),
+      });
+      if (!res.ok) return [];
+      const data = await res.json();
+      return data.detections || [];
+    } catch {
+      return [];
+    }
+  }
+
+  showScanWarning(text, detections) {
+    this.pendingText = text;
+    this.pendingDetections = detections;
+
+    document.getElementById('scan-count').textContent =
+      `${detections.length} issue${detections.length !== 1 ? 's' : ''}`;
+
+    const list = document.getElementById('scan-detections');
+    list.innerHTML = '';
+    for (const d of detections) {
+      const item = document.createElement('div');
+      item.className = 'detection-item';
+
+      const sev = document.createElement('span');
+      sev.className = `detection-severity sev-${(d.severity || 'medium').toLowerCase()}`;
+      sev.textContent = d.severity || 'MEDIUM';
+
+      const type = document.createElement('span');
+      type.className = 'detection-type';
+      type.textContent = (d.type || 'DATA').replace(/_/g, ' ');
+
+      const val = document.createElement('span');
+      val.className = 'detection-value';
+      val.textContent = this.maskValue(d.value, d.type);
+
+      const cat = document.createElement('span');
+      cat.className = `detection-category cat-${(d.category || 'pii').toLowerCase()}`;
+      cat.textContent = d.category || 'PII';
+
+      item.append(sev, type, val, cat);
+      list.appendChild(item);
+    }
+
+    document.getElementById('scan-warning').classList.remove('hidden');
+  }
+
+  dismissScanWarning() {
+    document.getElementById('scan-warning').classList.add('hidden');
+    this.pendingText = null;
+    this.pendingDetections = null;
+  }
+
+  maskValue(value, type) {
+    if (!value) return '';
+    if (type === 'CREDIT_CARD') return value.replace(/\d(?=\d{4})/g, '*');
+    if (type === 'SSN')         return `***-**-${value.slice(-4)}`;
+    if (type === 'BANK_ACCOUNT') return `****${value.slice(-4)}`;
+    if (type === 'API_KEY' || type === 'PASSWORD') return `${value.slice(0, 6)}…`;
+    return value.length > 40 ? `${value.slice(0, 32)}…` : value;
+  }
+
+  applyRedactions(text, detections) {
+    let result = text;
+    const sorted = [...detections].sort((a, b) => (b.value?.length || 0) - (a.value?.length || 0));
+    for (const d of sorted) {
+      if (!d.value) continue;
+      const escaped = d.value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      result = result.replace(new RegExp(escaped, 'gi'), `[${d.type}_REDACTED]`);
+    }
+    return result;
   }
 
   /* ── Streaming ─────────────────────────────────────────── */
